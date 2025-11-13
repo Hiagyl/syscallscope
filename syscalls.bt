@@ -1,0 +1,133 @@
+#!/usr/bin/env bpftrace
+
+// =============================
+//  System Call Security Monitor
+// =============================
+
+// Filter out self-activity (e.g., from bpftrace)
+BEGIN
+{
+  printf("=== Starting System Call Tracker (excluding bpftrace) ===\n");
+}
+
+// =============================
+//  EXECVE - Process Execution
+// =============================
+tracepoint:syscalls:sys_enter_execve
+/comm != "bpftrace"/
+{
+  printf("SYS|execve|pid=%d|uid=%d|comm=%s|file=%s\n", pid, uid, comm, str(args->filename));
+}
+
+// =============================
+//  OPENAT - File Access
+// =============================
+tracepoint:syscalls:sys_enter_openat
+/comm != "bpftrace"/
+{
+  printf("SYS|openat|pid=%d|uid=%d|comm=%s|file=%s\n", pid, uid, comm, str(args->filename));
+}
+
+// =============================
+//  WRITE - File or Socket Write
+// =============================
+tracepoint:syscalls:sys_enter_write
+/comm != "bpftrace"/
+{
+  printf("SYS|write|pid=%d|uid=%d|comm=%s|fd=%d\n", pid, uid, comm, args->fd);
+}
+
+// =============================
+//  MPROTECT - Memory Permissions (possible code injection)
+// =============================
+tracepoint:syscalls:sys_enter_mprotect
+/comm != "bpftrace"/
+{
+  printf("SYS|mprotect|pid=%d|uid=%d|comm=%s|prot=%d\n", pid, uid, comm, args->prot);
+}
+
+// =============================
+//  PTRACE - Process Debugging/Injection
+// =============================
+tracepoint:syscalls:sys_enter_ptrace
+/comm != "bpftrace"/
+{
+  printf("SYS|ptrace|pid=%d|uid=%d|comm=%s|target=%d|req=%d\n",
+    pid, uid, comm, args->pid, args->request);
+}
+
+// =============================
+//  CLONE/FORK - Process Creation
+// =============================
+tracepoint:syscalls:sys_enter_clone
+/comm != "bpftrace"/
+{
+  printf("SYS|clone|pid=%d|uid=%d|comm=%s\n", pid, uid, comm);
+}
+
+tracepoint:syscalls:sys_enter_fork
+/comm != "bpftrace"/
+{
+  printf("SYS|fork|pid=%d|uid=%d|comm=%s\n", pid, uid, comm);
+}
+
+// =============================
+//  CHMOD/CHOWN/UNLINK - File Manipulation
+// =============================
+tracepoint:syscalls:sys_enter_chmod
+/comm != "bpftrace"/
+{
+  printf("SYS|chmod|pid=%d|uid=%d|comm=%s|file=%s|mode=%o\n", pid, uid, comm, str(args->filename), args->mode);
+}
+
+tracepoint:syscalls:sys_enter_chown
+/comm != "bpftrace"/
+{
+  printf("SYS|chown|pid=%d|uid=%d|comm=%s|file=%s|owner=%d|group=%d\n",
+    pid, uid, comm, str(args->filename), args->user, args->group);
+}
+
+tracepoint:syscalls:sys_enter_unlink
+/comm != "bpftrace"/
+{
+  printf("SYS|unlink|pid=%d|uid=%d|comm=%s|file=%s\n", pid, uid, comm, str(args->pathname));
+}
+
+// =============================
+//  SOCKET/CONNECT/ACCEPT - Network Activity
+// =============================
+tracepoint:syscalls:sys_enter_socket
+/comm != "bpftrace"/
+{
+  printf("SYS|socket|pid=%d|uid=%d|comm=%s|type=%d|protocol=%d\n",
+    pid, uid, comm, args->type, args->protocol);
+}
+
+tracepoint:syscalls:sys_enter_connect
+/comm != "bpftrace"/
+{
+  printf("SYS|connect|pid=%d|uid=%d|comm=%s|sockfd=%d\n", pid, uid, comm, args->fd);
+}
+
+// =============================
+//  SETUID/SETGID - Privilege Escalation Attempts
+// =============================
+tracepoint:syscalls:sys_enter_setuid
+/comm != "bpftrace"/
+{
+  printf("SYS|setuid|pid=%d|uid=%d|comm=%s|target_uid=%d\n", pid, uid, comm, args->uid);
+}
+
+tracepoint:syscalls:sys_enter_setgid
+/comm != "bpftrace"/
+{
+  printf("SYS|setgid|pid=%d|uid=%d|comm=%s|target_gid=%d\n", pid, uid, comm, args->gid);
+}
+
+// =============================
+//  END
+// =============================
+END
+{
+  printf("=== System Call Tracker Ended ===\n");
+}
