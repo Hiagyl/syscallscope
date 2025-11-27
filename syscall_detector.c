@@ -152,7 +152,9 @@ void detect_event(const char *syscall, int pid, const char *comm,
 
     time_t now = time(NULL);
 
-    /* ---- Rule 1: Exec outside common paths ---- */
+    /* =======================================================
+     * RULE 1: Exec outside common paths
+     * ======================================================= */
     if (strcmp(syscall, "execve") == 0) {
         if (!exec_whitelisted(file)) {
             char detail[256];
@@ -162,7 +164,9 @@ void detect_event(const char *syscall, int pid, const char *comm,
         }
     }
 
-    /* ---- Rule 2: mprotect PROT_EXEC ---- */
+    /* =======================================================
+     * RULE 2: mprotect(PROT_EXEC)
+     * ======================================================= */
     if (strcmp(syscall, "mprotect") == 0) {
         if (prot && strstr(prot, "PROT_EXEC")) {
             char detail[256];
@@ -172,41 +176,44 @@ void detect_event(const char *syscall, int pid, const char *comm,
         }
     }
 
-    /* ---- Rule 3: ptrace ---- */
+    /* =======================================================
+     * RULE 3: ptrace
+     * ======================================================= */
     if (strcmp(syscall, "ptrace") == 0) {
         char detail[128];
         snprintf(detail, sizeof(detail),
-                 "ptrace called by process");
+                 "ptrace used by process");
         log_alert("PTRACE_USED", s, detail);
     }
 
-    /* ---- Rule 4+5: Detect ransomware-like writes ---- */
+    /* =======================================================
+     * RULE 4 + 5: Rapid writes (ransomware-like)
+     * ======================================================= */
     if (strcmp(syscall, "write") == 0) {
 
-        /* Skip known noisy processes */
+        /* Skip harmless processes */
         if (write_process_whitelisted(s->comm))
-            return;
+            goto END_RULES;
 
-        /* Skip system and temp dirs */
-        if (file &&
-            (strstr(file, "/proc/")
-             || strstr(file, "/dev/")
-             || strstr(file, "/run/")
-             || strstr(file, "/sys/")
-             || strstr(file, "/tmp/")
-             || strstr(file, "socket:")
-             || strstr(file, "pipe:"))) {
-            return;
+        /* Skip noise directories */
+        if (file && (
+            strstr(file, "/proc/") ||
+            strstr(file, "/dev/") ||
+            strstr(file, "/run/") ||
+            strstr(file, "/sys/") ||
+            strstr(file, "/tmp/") ||
+            strstr(file, "socket:") ||
+            strstr(file, "pipe:")
+        )) {
+            goto END_RULES;
         }
 
-        /* Timing-based anomaly detection */
         double diff = difftime(now, s->last_event);
 
-        if (diff < 0.3) {
+        if (diff < 0.3)
             s->suspicious_count++;
-        } else {
+        else
             s->suspicious_count = 0;
-        }
 
         s->last_event = now;
 
@@ -216,7 +223,68 @@ void detect_event(const char *syscall, int pid, const char *comm,
             s->suspicious_count = 0;
         }
     }
+
+    /* =======================================================
+     * RULE 6: chmod on sensitive paths
+     * ======================================================= */
+    if (strcmp(syscall, "chmod") == 0 ||
+        strcmp(syscall, "fchmod") == 0 ||
+        strcmp(syscall, "fchmodat") == 0) {
+
+        if (file &&
+            !(strstr(file, "/home/") || strstr(file, "/tmp/") ||
+              strstr(file, "/var/tmp/") || strstr(file, "/dev/"))) {
+
+            char detail[256];
+            snprintf(detail, sizeof(detail),
+                     "chmod on non-user path: %s", file);
+            log_alert("CHMOD_SUSPICIOUS_PATH", s, detail);
+        }
+    }
+
+    /* =======================================================
+     * RULE 7: Rapid getdents64 (directory scanning)
+     * ======================================================= */
+    if (strcmp(syscall, "getdents64") == 0) {
+
+        double diff = difftime(now, s->last_event);
+
+        if (diff < 0.2)
+            s->suspicious_count++;
+        else
+            s->suspicious_count = 0;
+
+        s->last_event = now;
+
+        if (s->suspicious_count > 40) {
+            log_alert("RAPID_DIR_ENUMERATION", s,
+                      "Burst of getdents64 calls (directory scanning)");
+            s->suspicious_count = 0;
+        }
+    }
+
+    /* =======================================================
+     * RULE 8: Suspicious connect()
+     * ======================================================= */
+    if (strcmp(syscall, "connect") == 0) {
+
+        if (file &&
+            !(strstr(file, "127.0.0.1") ||
+              strstr(file, "localhost") ||
+              strstr(file, ":80") ||
+              strstr(file, ":443"))) {
+
+            char detail[256];
+            snprintf(detail, sizeof(detail),
+                     "connect to unusual address");
+            log_alert("SUSPICIOUS_CONNECT", s, detail);
+        }
+    }
+
+END_RULES:
+    return;
 }
+
 
 /* ================================================
    INPUT PARSER (key=value)
@@ -225,6 +293,8 @@ void process_line(char *line_in) {
     char buf[1024];
     strncpy(buf, line_in, sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
+
+    
 
     size_t L = strlen(buf);
     while (L && (buf[L - 1] == '\n' || buf[L - 1] == '\r')) buf[--L] = '\0';
@@ -253,6 +323,8 @@ void process_line(char *line_in) {
             strncpy(comm, token + 5, sizeof(comm) - 1);
 
         else if (strncmp(token, "file=", 5) == 0)
+            strncpy(file, token + 5, sizeof(file) - 1);
+        else if (strncmp(token, "addr=", 5) == 0)
             strncpy(file, token + 5, sizeof(file) - 1);
 
         else if (strncmp(token, "filename=", 9) == 0)

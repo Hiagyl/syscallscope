@@ -125,6 +125,17 @@ tracepoint:syscalls:sys_enter_setgid
 }
 
 // =============================
+//  GETDENTS64 - Directory Enumeration
+// =============================
+tracepoint:syscalls:sys_enter_getdents64
+/comm != "bpftrace"/
+{
+  printf("SYS|getdents64|pid=%d|uid=%d|comm=%s|fd=%d|buf=0x%lx\n",
+    pid, uid, comm, args->fd, args->dirent);
+}
+
+
+// =============================
 //  END
 // =============================
 END
