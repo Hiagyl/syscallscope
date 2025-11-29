@@ -1,145 +1,68 @@
-SyscallScope
+# SyscallScope User Guide
 
-SyscallScope is a lightweight system-call tracing and detection tool for Linux. It captures real-time syscall activity using eBPF/BPFtrace and processes events through a C-based detection engine to identify suspicious or anomalous behaviors.
+## Overview
+**SyscallScope** SyscallScope is a lightweight system-call tracing and detection tool for Linux. It captures real-time syscall activity using **eBPF/BPFtrace** and processes events through a C-based detection engine to identify suspicious or anomalous behaviors.
 
-Overview
+## Features
 
-SyscallScope detects:
+- **Real-time syscall monitoring** via BPFtrace
+- **Structured SYS|key=value event pipeline**
+- **Per-PID state tracking**
+- **Rule-based detection engine**
+- **Timestamped alert reporting**
+- **C-based test generators** for:
+  - `getdents64` directory bursts
+  - `connect()` attempts
+  - Rapid `write()` activity
+  - Abusive `chmod` operations
 
-Suspicious exec paths
+## System Requirements
+- Operating System: Windows 10/11 (with WSL) or Linux (Ubuntu 20.04+ recommended)  
+- CPU: 64-bit  
+- RAM: 4 GB minimum  
+- Required Software:
+  - **BPFtrace** (Apache 2.0 License)
+  - **GNU Coreutils**
+  - **gcc** (for compiling C code, if needed)
+  - **make** (to run the Makefile)
 
-Ransomware-like rapid write bursts
+## Installation
 
-Directory scanning via getdents64
+### Cloning the Repository
+To get started, clone the GitHub repository:
 
-Abnormal chmod usage
-
-Suspicious connect() attempts
-
-Executable memory changes
-
-Ptrace-based process manipulation
-
-It provides real-time detection with minimal system overhead.
-
-Features
-
-Real-time syscall monitoring via BPFtrace
-
-Structured SYS|key=value event pipeline
-
-Per-PID state tracking
-
-Rule-based detection engine
-
-Timestamped alert reporting
-
-C-based test generators for:
-
-getdents64 directory bursts
-
-connect() attempts
-
-rapid write() activity
-
-abusive chmod operations
-
-System Requirements
-
-OS: Linux (Ubuntu 20.04+, Debian, Kali, Arch) or WSL2 with eBPF
-
-CPU: 64-bit
-
-RAM: 4 GB
-
-Dependencies:
-
-BPFtrace
-
-gcc
-
-make
-
-GNU Coreutils
-
-Installation
-Clone the Repository
-git clone https://github.com/Hiagyl/syscallscope.git
+git clone https://github.com/hiagyl/syscallscope.git
 cd syscallscope
 
-Install Dependencies (Ubuntu Example)
+### Dependencies
+Make sure all dependencies are installed. For example, on Ubuntu:
+
 sudo apt update
 sudo apt install bpftrace coreutils build-essential make
+## Building and Running SyscallScope
+SyscallScope uses a Makefile to compile and run the project. You do not need a container or virtual environment.
 
-Build and Run
-Build Detection Engine
+### Build and Run Both Files
+To compile and run the main files, execute:
+
 make build
-
-Start BPFtrace Monitoring
 make bpf
 
-What These Commands Do
+### These commands:
 
-Compiles detection.c into syscall_detector
+Compiles the source code
+Runs the BPFtrace scripts
+Displays real-time system call traces
 
-Runs syscalls.bt
+## Troubleshooting
+Permission Denied: Run with elevated privileges, e.g., sudo make bpf on Linux.
 
-Displays real-time syscall logs and triggers alerts
+Missing Dependencies: Verify that BPFtrace, GNU Coreutils, gcc, and make are installed.
 
-Troubleshooting
-Permission Denied
+Makefile Errors: Ensure you are in the correct repository folder and that file paths match those in the Makefile.
 
-Run with sudo:
-
-sudo make bpf
-
-Missing Tools
-
-Check versions:
-
-bpftrace --version
-gcc --version
-make --version
-
-Makefile Errors
-
-Ensure correct directory
-
-Ensure filenames match
-
-Try updating:
-
-git pull
-
-Repository Structure
-syscallscope/
-├── syscalls.bt
-├── detection.c
-├── Makefile
-├── README.md
-├── docs/
-└── release/
-
-Testing
-
-The project includes reproducible simulators:
-
-directory enumeration (getdents64)
-
-network connect attempts
-
-rapid-write ransomware load
-
-suspicious chmod changes
-
-Useful for validating detection accuracy.
-
-Support
-
-For issues or questions, contact:
+## Support
+For questions, issues, or bug reports, contact the project contributors:
 
 Joshua Ticot
-
 Myra Verde
-
-Or open an Issue on GitHub.
